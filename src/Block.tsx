@@ -2,6 +2,8 @@ import { type Color, useBlockSettings } from '@frontify/app-bridge';
 import { type BlockProps } from '@frontify/guideline-blocks-settings';
 import { type CSSProperties, type FC, useEffect, useRef, useState } from 'react';
 
+import { useAuth } from './useAuth';
+
 type Settings = {
     color: Color;
 };
@@ -51,10 +53,9 @@ const getWidgetStyles = (glowColor: string) => `
 
 export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
     const [blockSettings] = useBlockSettings<Settings>(appBridge);
+    const { isAuthenticated, user, loading } = useAuth(appBridge);
     const color = blockSettings?.color;
-    const glowColor = color
-        ? `rgba(${color.red}, ${color.green}, ${color.blue}, 0.5)`
-        : 'rgba(6, 78, 193, 0.5)';
+    const glowColor = color ? `rgba(${color.red}, ${color.green}, ${color.blue}, 0.5)` : 'rgba(6, 78, 193, 0.5)';
 
     const [open, setOpen] = useState<boolean>(() => {
         try {
@@ -220,7 +221,26 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
                     </div>
 
                     <div style={{ flex: 1, padding: 16, fontSize: 14, color: '#334155', overflowY: 'auto' }}>
-                        <p>Teammate widget content goes here.</p>
+                        {loading ? (
+                            <p style={{ color: '#94a3b8' }}>Loading...</p>
+                        ) : isAuthenticated && user ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                {user.avatar && (
+                                    <img
+                                        src={user.avatar}
+                                        alt=""
+                                        style={{ width: 32, height: 32, borderRadius: '50%' }}
+                                    />
+                                )}
+                                <div>
+                                    <div style={{ fontWeight: 600 }}>{user.name ?? 'User'}</div>
+                                    <div style={{ fontSize: 12, color: '#64748b' }}>{user.email}</div>
+                                    <span style={{ color: '#94a3b8', fontSize: 12 }}>&nbsp;&nbsp;ID: {user.id}</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <p style={{ color: '#94a3b8' }}>Not authenticated</p>
+                        )}
                     </div>
                 </div>
 
