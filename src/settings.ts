@@ -20,7 +20,7 @@ export const settings = defineSettings({
     style: [
         {
             id: 'color',
-            label: 'Text Color',
+            label: 'Button Color',
             type: 'colorInput',
             defaultValue: { red: 113, green: 89, blue: 215, alpha: 1, name: 'Frontify Violet' },
         },

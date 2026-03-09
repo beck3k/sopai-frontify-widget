@@ -1,9 +1,9 @@
 import { defineBlock } from '@frontify/guideline-blocks-settings';
 
-import { AnExampleBlock } from './Block';
+import { TeammateWidget } from './Block';
 import { settings } from './settings';
 
 export default defineBlock({
-    block: AnExampleBlock,
+    block: TeammateWidget,
     settings,
 });
