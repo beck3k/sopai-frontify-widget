@@ -2,7 +2,7 @@ import { type Color, useBlockSettings } from '@frontify/app-bridge';
 import { type BlockProps } from '@frontify/guideline-blocks-settings';
 import { type CSSProperties, type FC, useCallback, useEffect, useRef, useState } from 'react';
 
-import { authenticate } from './api';
+import { authenticate, checkWidgetAccess } from './api';
 import { useAuth } from './useAuth';
 
 type Settings = {
@@ -11,6 +11,7 @@ type Settings = {
 
 const STORAGE_KEY = 'sopai_frontify_widget_open_v1';
 const ORG_SLUG_KEY = 'sopai_org_slug_v1';
+const ACCESS_KEY_PREFIX = 'sopai_widget_access_';
 
 const LOGO_PATH =
     'M 35.5222,11.8848 C 35.4645,8.06085 32.6717,4.16743 28.4042,1.97529 24.9078,0.177367 21.3544,0.00772536 19.1337,1.5491 17.2496,2.85201 15.8389,5.11784 14.7251,7.71948 9.41475,6.9999 5.72226,7.81334 3.4453,10.228 -0.288214,13.8648 -1.02657,19.648 1.42211,26.0853 3.82421,32.4121 8.57419,37.3165 12.4711,37.4958 12.5406,37.5 12.6157,37.5 12.688,37.5 c 1.889,0 3.4499,-1.1499 4.5428,-3.4109 0.0473,-0.1092 0.1516,-0.5263 0.1815,-0.6174 0.9907,-3.0723 0.8085,-8.065 0.5847,-13.376 -0.08,-1.8821 -0.1606,-3.7815 -0.1829,-5.5912 4.4316,1.793 8.6684,3.3511 11.9174,3.3511 1.1923,0.0473 2.3731,-0.2483 3.4025,-0.8517 1.4503,-0.9198 2.252,-2.6427 2.3882,-5.1191 z M 5.09931,14.266 c -0.03824,-1.3905 0.37057,-2.3381 1.21809,-2.8234 1.28274,-0.7328 4.102,0.1661 6.7162,1.1541 -0.6814,2.4271 -1.2028,4.8591 -1.636,6.9206 -0.6257,2.9812 -1.1743,5.5571 -1.76732,5.5787 C 7.10095,21.2832 5.17579,17.0547 5.09931,14.266 Z M 20.7669,3.36302 C 21.088,3.25724 21.4286,3.22413 21.764,3.2661 c 0.3355,0.04196 0.6575,0.15795 0.9426,0.33957 2.035,1.08181 4.0673,4.19864 4.7048,7.14583 C 26.5396,10.5214 25.6566,10.2871 24.7215,10.027 22.5863,9.43537 20.3761,8.82216 18.1471,8.33687 18.5247,5.85412 19.2776,3.98458 20.7669,3.36302 Z';
@@ -66,6 +67,52 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
             return null;
         }
     });
+
+    // null = not yet determined, true = render, false = blocked
+    const [accessAllowed, setAccessAllowed] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        if (!user) {
+            setAccessAllowed(null);
+            return;
+        }
+
+        const key = `${ACCESS_KEY_PREFIX}${user.id}`;
+        let cached = false;
+        try {
+            cached = localStorage.getItem(key) === '1';
+        } catch {
+            // ignore storage errors
+        }
+        if (cached) {
+            console.log('[SOPAI:Block] widget access cached for user', user.id);
+            setAccessAllowed(true);
+            return;
+        }
+
+        let cancelled = false;
+        console.log('[SOPAI:Block] checking widget access for', user.email);
+        checkWidgetAccess(window.location.origin, user.email)
+            .then((allowed) => {
+                if (cancelled) return;
+                if (allowed) {
+                    try {
+                        localStorage.setItem(key, '1');
+                    } catch {
+                        // ignore
+                    }
+                }
+                setAccessAllowed(allowed);
+            })
+            .catch((err) => {
+                console.error('[SOPAI:Block] widget access check failed:', err);
+                if (!cancelled) setAccessAllowed(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [user]);
 
     const [open, setOpen] = useState<boolean>(() => {
         try {
@@ -192,7 +239,7 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
 
     // If we don't have the org slug, force authenticate to get it
     useEffect(() => {
-        if (!isFrontifyAuthenticated || !user || orgSlug) return;
+        if (!isFrontifyAuthenticated || !user || orgSlug || accessAllowed !== true) return;
 
         console.log('[SOPAI:Block] No org slug cached — forcing HMAC auth to resolve it...');
         authenticate(appBridge, { id: user.id, email: user.email })
@@ -206,7 +253,7 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
                 }
             })
             .catch((err) => console.error('[SOPAI:Block] Auth for org slug failed:', err));
-    }, [isFrontifyAuthenticated, user, orgSlug, appBridge]);
+    }, [isFrontifyAuthenticated, user, orgSlug, appBridge, accessAllowed]);
 
     // Handle postMessage from iframe — authenticate only when requested
     const handleIframeMessage = useCallback(
@@ -279,6 +326,8 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
     });
 
     const bubbleAnimClass = open ? 'sopai-bubble-open' : hasRendered.current ? 'sopai-bubble-closed' : '';
+
+    if (accessAllowed !== true) return null;
 
     return (
         <>

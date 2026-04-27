@@ -6,6 +6,20 @@ const API_BASE = 'http://localhost:8000';
 
 type OrgInfoResponse = { asset_id: string; org_slug: string };
 
+type WidgetAccessResponse = { allowed: boolean };
+
+export async function checkWidgetAccess(domain: string, email: string): Promise<boolean> {
+    const url = `${API_BASE}/frontify/widget-access?domain=${encodeURIComponent(domain)}&email=${encodeURIComponent(email)}`;
+    console.log('[SOPAI:api] checkWidgetAccess requesting:', url);
+    const res = await fetch(url);
+    if (!res.ok) {
+        throw new Error(`Failed to check widget access: ${res.status}`);
+    }
+    const data = (await res.json()) as WidgetAccessResponse;
+    console.log('[SOPAI:api] checkWidgetAccess response:', data);
+    return data.allowed;
+}
+
 export async function getOrgInfo(domain: string): Promise<OrgInfoResponse> {
     console.log('[SOPAI:api] getOrgInfo requesting for domain:', domain);
     const res = await fetch(`${API_BASE}/frontify/hmac-asset?domain=${encodeURIComponent(domain)}`);
