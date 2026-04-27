@@ -122,11 +122,13 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
         }
     });
 
-    // track whether we've rendered at least once so the close animation doesn't play on mount
+    // track whether the bubble has rendered at least once so the close animation doesn't play on mount
     const hasRendered = useRef(false);
     useEffect(() => {
-        hasRendered.current = true;
-    }, []);
+        if (accessAllowed === true) {
+            hasRendered.current = true;
+        }
+    }, [accessAllowed]);
 
     const rootRef = useRef<HTMLDivElement | null>(null);
     const toggleRef = useRef<HTMLButtonElement | null>(null);
