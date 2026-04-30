@@ -26,6 +26,17 @@ const getWidgetStyles = (glowColor: string) => `
         0% { opacity: 1; transform: translateY(0) scale(1); }
         100% { opacity: 0; transform: translateY(16px) scale(0.92); }
     }
+    @keyframes sopai-spin {
+        to { transform: rotate(360deg); }
+    }
+    .sopai-spinner {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 2.5px solid rgba(0, 0, 0, 0.08);
+        border-top-color: #3a3a3a;
+        animation: sopai-spin 0.8s linear infinite;
+    }
     #sopai-widget-toggle {
         transition: box-shadow 0.3s ease, transform 0.15s ease;
     }
@@ -396,7 +407,28 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
 
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                         {loading ? (
-                            <p style={{ padding: 16, color: '#94a3b8', fontSize: 14 }}>Loading...</p>
+                            <div
+                                style={{
+                                    flex: 1,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 16,
+                                    padding: 24,
+                                    textAlign: 'center',
+                                }}
+                            >
+                                <div className="sopai-spinner" aria-hidden="true" />
+                                <div style={{ color: '#475569', fontSize: 14, lineHeight: 1.5, maxWidth: 280 }}>
+                                    <div style={{ fontWeight: 600, color: '#1a1a1a', marginBottom: 4 }}>
+                                        Preparing your account
+                                    </div>
+                                    <div style={{ color: '#64748b' }}>
+                                        We&apos;re validating your access — this may take a moment.
+                                    </div>
+                                </div>
+                            </div>
                         ) : isFrontifyAuthenticated && iframeUrl ? (
                             <iframe
                                 ref={iframeRef}
