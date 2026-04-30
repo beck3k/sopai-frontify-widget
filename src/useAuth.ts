@@ -1,4 +1,4 @@
-import type { AppBridgeBlock } from '@frontify/app-bridge';
+import { type AppBridgeBlock } from '@frontify/app-bridge';
 import { useEffect, useState } from 'react';
 
 type AuthUser = {
@@ -54,15 +54,17 @@ export function useAuth(appBridge: AppBridgeBlock): FrontifyState {
                     });
                     console.log('[SOPAI:useAuth] State set, user ready');
                 }
-            } catch (err) {
-                console.error('[SOPAI:useAuth] Error:', err);
+            } catch (error) {
+                console.error('[SOPAI:useAuth] Error:', error);
                 if (!cancelled) {
                     setState({ isFrontifyAuthenticated: false, user: null, loading: false });
                 }
             }
         }
 
-        init();
+        init().catch((error) => {
+            console.error('[SOPAI:useAuth] init failed:', error);
+        });
 
         return () => {
             cancelled = true;

@@ -94,7 +94,9 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
         console.log('[SOPAI:Block] checking widget access for', user.email);
         checkWidgetAccess(window.location.origin, user.email)
             .then((allowed) => {
-                if (cancelled) return;
+                if (cancelled) {
+                    return;
+                }
                 if (allowed) {
                     try {
                         localStorage.setItem(key, '1');
@@ -104,9 +106,11 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
                 }
                 setAccessAllowed(allowed);
             })
-            .catch((err) => {
-                console.error('[SOPAI:Block] widget access check failed:', err);
-                if (!cancelled) setAccessAllowed(false);
+            .catch((error) => {
+                console.error('[SOPAI:Block] widget access check failed:', error);
+                if (!cancelled) {
+                    setAccessAllowed(false);
+                }
             });
 
         return () => {
@@ -130,7 +134,6 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
         }
     }, [accessAllowed]);
 
-    const rootRef = useRef<HTMLDivElement | null>(null);
     const toggleRef = useRef<HTMLButtonElement | null>(null);
     const bubbleRef = useRef<HTMLDivElement | null>(null);
 
@@ -154,9 +157,15 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
     }, [open]);
 
     useEffect(() => {
-        if (!rootRef.current || !toggleRef.current) return;
-        rootRef.current.style.pointerEvents = open ? 'auto' : 'none';
-        toggleRef.current.style.pointerEvents = 'auto';
+        const el = bubbleRef.current;
+        if (!el) {
+            return;
+        }
+        if (open) {
+            el.removeAttribute('inert');
+        } else {
+            el.setAttribute('inert', '');
+        }
     }, [open]);
 
     useEffect(() => {
@@ -165,7 +174,9 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
                 bubbleRef.current?.querySelector<HTMLElement>(
                     'button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])',
                 ) ?? null;
-            if (firstFocusable) firstFocusable.focus();
+            if (firstFocusable) {
+                firstFocusable.focus();
+            }
         }
     }, [open]);
 
@@ -173,14 +184,13 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
         position: 'fixed',
         left: 80,
         bottom: 20,
-        zIndex: 2147483647,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-start',
-        gap: 12,
+        zIndex: open ? 2147483647 : 'auto',
     };
 
     const bubbleStyle: CSSProperties = {
+        position: 'absolute',
+        left: 0,
+        bottom: 68,
         width: 450,
         maxWidth: 'calc(100vw - 100px)',
         height: 550,
@@ -232,6 +242,8 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
+        position: 'relative',
+        zIndex: 2147483647,
     };
 
     const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -241,7 +253,9 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
 
     // If we don't have the org slug, force authenticate to get it
     useEffect(() => {
-        if (!isFrontifyAuthenticated || !user || orgSlug || accessAllowed !== true) return;
+        if (!isFrontifyAuthenticated || !user || orgSlug || accessAllowed !== true) {
+            return;
+        }
 
         console.log('[SOPAI:Block] No org slug cached — forcing HMAC auth to resolve it...');
         authenticate(appBridge, { id: user.id, email: user.email })
@@ -254,30 +268,36 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
                     // ignore
                 }
             })
-            .catch((err) => console.error('[SOPAI:Block] Auth for org slug failed:', err));
+            .catch((error) => console.error('[SOPAI:Block] Auth for org slug failed:', error));
     }, [isFrontifyAuthenticated, user, orgSlug, appBridge, accessAllowed]);
 
     // Handle postMessage from iframe — authenticate only when requested
     const handleIframeMessage = useCallback(
         async (e: MessageEvent) => {
-            if (e.origin !== iframeOrigin) return;
-            console.log('[SOPAI:iframe→parent] message:', e.data);
+            if (e.origin !== iframeOrigin) {
+                return;
+            }
+            const data = e.data as { type?: string; url?: string; authRequired?: boolean } | null;
+            console.log('[SOPAI:iframe→parent] message:', data);
 
-            if (e.data?.type === 'frontify-navigate' && typeof e.data.url === 'string') {
-                console.log('[SOPAI:Block] navigate request:', e.data.url);
+            if (data?.type === 'frontify-navigate' && typeof data.url === 'string') {
+                const navUrl = data.url;
+                console.log('[SOPAI:Block] navigate request:', navUrl);
                 try {
-                    (window.top ?? window).location.href = e.data.url;
-                } catch (err) {
-                    console.error('[SOPAI:Block] top-frame navigation blocked, opening in same tab:', err);
-                    window.open(e.data.url, '_top');
+                    (window.top ?? window).location.href = navUrl;
+                } catch (error) {
+                    console.error('[SOPAI:Block] top-frame navigation blocked, opening in same tab:', error);
+                    window.open(navUrl, '_top');
                 }
                 return;
             }
 
-            if (e.data?.type !== 'frontify-ready') return;
-            console.log('[SOPAI:Block] iframe ready, authRequired:', e.data.authRequired);
+            if (data?.type !== 'frontify-ready') {
+                return;
+            }
+            console.log('[SOPAI:Block] iframe ready, authRequired:', data.authRequired);
 
-            if (e.data.authRequired && user) {
+            if (data.authRequired && user) {
                 console.log('[SOPAI:Block] Auth required — starting HMAC auth flow...');
                 try {
                     const session = await authenticate(appBridge, { id: user.id, email: user.email });
@@ -295,8 +315,8 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
                             // ignore
                         }
                     }
-                } catch (err) {
-                    console.error('[SOPAI:Block] HMAC auth failed:', err);
+                } catch (error) {
+                    console.error('[SOPAI:Block] HMAC auth failed:', error);
                 }
             } else {
                 console.log('[SOPAI:Block] No auth needed, iframe has valid JWT');
@@ -311,11 +331,16 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
                 console.log('[SOPAI:iframe→parent] raw:', e.data);
             }
         }
+        const onMessage = (e: MessageEvent) => {
+            handleIframeMessage(e).catch((error) => {
+                console.error('[SOPAI:Block] message handler failed:', error);
+            });
+        };
         window.addEventListener('message', logAllMessages);
-        window.addEventListener('message', handleIframeMessage);
+        window.addEventListener('message', onMessage);
         return () => {
             window.removeEventListener('message', logAllMessages);
-            window.removeEventListener('message', handleIframeMessage);
+            window.removeEventListener('message', onMessage);
         };
     }, [handleIframeMessage]);
 
@@ -329,18 +354,14 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
 
     const bubbleAnimClass = open ? 'sopai-bubble-open' : hasRendered.current ? 'sopai-bubble-closed' : '';
 
-    if (accessAllowed !== true) return null;
+    if (accessAllowed !== true) {
+        return null;
+    }
 
     return (
         <>
             <style dangerouslySetInnerHTML={{ __html: getWidgetStyles(glowColor) }} />
-            <div
-                id="sopai-widget-root"
-                ref={rootRef}
-                className="sopai-teammate-widget"
-                style={containerStyle}
-                aria-hidden={!open}
-            >
+            <div id="sopai-widget-root" className="sopai-teammate-widget" style={containerStyle} aria-hidden={!open}>
                 <div
                     id="sopai-widget-bubble"
                     role="dialog"

@@ -1,5 +1,4 @@
-import { HttpClient } from '@frontify/app-bridge';
-import type { AppBridgeBlock } from '@frontify/app-bridge';
+import { HttpClient, type AppBridgeBlock } from '@frontify/app-bridge';
 
 // const API_BASE = 'https://dev.api.perpetual-teammate.com';
 const API_BASE = 'http://localhost:8000';
@@ -161,7 +160,7 @@ export async function authenticate(
         timestamp,
     };
     const hmac = await signPayload(payload, hmacKey);
-    console.log('[SOPAI:api] Step 4 done, HMAC:', hmac.slice(0, 16) + '...');
+    console.log('[SOPAI:api] Step 4 done, HMAC:', `${hmac.slice(0, 16)}...`);
 
     // 5. Send to our backend for JWT
     console.log('[SOPAI:api] Step 5: Posting to /frontify/auth...');
