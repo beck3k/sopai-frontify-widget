@@ -1,7 +1,8 @@
 import { HttpClient, type AppBridgeBlock } from '@frontify/app-bridge';
 
-// const API_BASE = 'https://dev.api.perpetual-teammate.com';
-const API_BASE = 'http://localhost:8000';
+import { env } from './env';
+
+const API_BASE = env.apiBase;
 
 type OrgInfoResponse = { asset_id: string; org_slug: string };
 

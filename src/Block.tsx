@@ -3,6 +3,7 @@ import { type BlockProps } from '@frontify/guideline-blocks-settings';
 import { type CSSProperties, type FC, useCallback, useEffect, useRef, useState } from 'react';
 
 import { authenticate, checkWidgetAccess } from './api';
+import { env } from './env';
 import { useAuth } from './useAuth';
 
 type Settings = {
@@ -247,9 +248,7 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
     };
 
     const iframeRef = useRef<HTMLIFrameElement | null>(null);
-    // const iframeOrigin = 'https://dev.perpetual-teammate.com';
-    const iframeOrigin = 'http://localhost:3000';
-    const iframeUrl = orgSlug ? `${iframeOrigin}/${orgSlug}/frontify` : null;
+    const iframeUrl = orgSlug ? `${env.iframeOrigin}/${orgSlug}/frontify` : null;
 
     // If we don't have the org slug, force authenticate to get it
     useEffect(() => {
@@ -274,7 +273,7 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
     // Handle postMessage from iframe — authenticate only when requested
     const handleIframeMessage = useCallback(
         async (e: MessageEvent) => {
-            if (e.origin !== iframeOrigin) {
+            if (e.origin !== env.iframeOrigin) {
                 return;
             }
             const data = e.data as { type?: string; url?: string; authRequired?: boolean } | null;
@@ -304,7 +303,7 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
                     console.log('[SOPAI:Block] HMAC auth succeeded, sending JWT to iframe');
                     iframeRef.current?.contentWindow?.postMessage(
                         { type: 'frontify-auth', token: session.access_token },
-                        iframeOrigin,
+                        env.iframeOrigin,
                     );
                     // Also update org slug in case it changed
                     if (session.org_slug !== orgSlug) {
@@ -327,7 +326,7 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
 
     useEffect(() => {
         function logAllMessages(e: MessageEvent) {
-            if (e.origin === iframeOrigin) {
+            if (e.origin === env.iframeOrigin) {
                 console.log('[SOPAI:iframe→parent] raw:', e.data);
             }
         }
