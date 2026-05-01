@@ -16,6 +16,15 @@ export const settings = defineSettings({
                 },
             ],
         },
+        {
+            id: 'hmacKey',
+            label: 'HMAC Key',
+            info: 'Shared secret used to sign auth requests. Get this from the TeamMate admin.',
+            type: 'input',
+            inputType: 'password',
+            placeholder: 'Paste HMAC key',
+            clearable: true,
+        },
     ],
     style: [
         {

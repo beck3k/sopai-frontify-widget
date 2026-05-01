@@ -8,6 +8,7 @@ import { useAuth } from './useAuth';
 
 type Settings = {
     color: Color;
+    hmacKey?: string;
 };
 
 const STORAGE_KEY = 'sopai_frontify_widget_open_v1';
@@ -70,6 +71,8 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
     const [blockSettings] = useBlockSettings<Settings>(appBridge);
     const { isFrontifyAuthenticated, user, loading } = useAuth(appBridge);
     const color = blockSettings?.color;
+    const hmacKey = blockSettings?.hmacKey?.trim() ?? '';
+    const buttonColor = color ? `rgba(${color.red}, ${color.green}, ${color.blue}, ${color.alpha ?? 1})` : '#3a3a3a';
     const glowColor = color ? `rgba(${color.red}, ${color.green}, ${color.blue}, 0.5)` : 'rgba(6, 78, 193, 0.5)';
 
     const [orgSlug, setOrgSlug] = useState<string | null>(() => {
@@ -247,7 +250,7 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
         height: 56,
         borderRadius: '50%',
         border: 'none',
-        background: '#3a3a3a',
+        background: buttonColor,
         color: '#ffffff',
         boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.08)',
         display: 'inline-flex',
@@ -266,9 +269,13 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
         if (!isFrontifyAuthenticated || !user || orgSlug || accessAllowed !== true) {
             return;
         }
+        if (!hmacKey) {
+            console.warn('[SOPAI:Block] No HMAC key configured in block settings — skipping auth.');
+            return;
+        }
 
         console.log('[SOPAI:Block] No org slug cached — forcing HMAC auth to resolve it...');
-        authenticate(appBridge, { id: user.id, email: user.email })
+        authenticate(appBridge, { id: user.id, email: user.email }, hmacKey)
             .then((session) => {
                 console.log('[SOPAI:Block] Auth succeeded, org slug:', session.org_slug);
                 setOrgSlug(session.org_slug);
@@ -279,7 +286,7 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
                 }
             })
             .catch((error) => console.error('[SOPAI:Block] Auth for org slug failed:', error));
-    }, [isFrontifyAuthenticated, user, orgSlug, appBridge, accessAllowed]);
+    }, [isFrontifyAuthenticated, user, orgSlug, appBridge, accessAllowed, hmacKey]);
 
     // Handle postMessage from iframe — authenticate only when requested
     const handleIframeMessage = useCallback(
@@ -308,9 +315,13 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
             console.log('[SOPAI:Block] iframe ready, authRequired:', data.authRequired);
 
             if (data.authRequired && user) {
+                if (!hmacKey) {
+                    console.warn('[SOPAI:Block] iframe requested auth but no HMAC key is configured.');
+                    return;
+                }
                 console.log('[SOPAI:Block] Auth required — starting HMAC auth flow...');
                 try {
-                    const session = await authenticate(appBridge, { id: user.id, email: user.email });
+                    const session = await authenticate(appBridge, { id: user.id, email: user.email }, hmacKey);
                     console.log('[SOPAI:Block] HMAC auth succeeded, sending JWT to iframe');
                     iframeRef.current?.contentWindow?.postMessage(
                         { type: 'frontify-auth', token: session.access_token },
@@ -332,7 +343,7 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
                 console.log('[SOPAI:Block] No auth needed, iframe has valid JWT');
             }
         },
-        [appBridge, user, orgSlug],
+        [appBridge, user, orgSlug, hmacKey],
     );
 
     useEffect(() => {
@@ -427,6 +438,43 @@ export const TeammateWidget: FC<BlockProps> = ({ appBridge }) => {
                                     <div style={{ color: '#64748b' }}>
                                         We&apos;re validating your access — this may take a moment.
                                     </div>
+                                </div>
+                            </div>
+                        ) : isFrontifyAuthenticated && !hmacKey ? (
+                            <div
+                                style={{
+                                    flex: 1,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 12,
+                                    padding: 24,
+                                    textAlign: 'center',
+                                }}
+                            >
+                                <div
+                                    aria-hidden="true"
+                                    style={{
+                                        width: 36,
+                                        height: 36,
+                                        borderRadius: '50%',
+                                        background: '#fef3c7',
+                                        color: '#b45309',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontWeight: 700,
+                                        fontSize: 18,
+                                    }}
+                                >
+                                    !
+                                </div>
+                                <div style={{ color: '#475569', fontSize: 14, lineHeight: 1.5, maxWidth: 280 }}>
+                                    <div style={{ fontWeight: 600, color: '#1a1a1a', marginBottom: 4 }}>
+                                        HMAC key missing
+                                    </div>
+                                    <div style={{ color: '#64748b' }}>Please contact your administrator.</div>
                                 </div>
                             </div>
                         ) : isFrontifyAuthenticated && iframeUrl ? (

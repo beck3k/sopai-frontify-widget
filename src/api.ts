@@ -4,8 +4,6 @@ import { env } from './env';
 
 const API_BASE = env.apiBase;
 
-type OrgInfoResponse = { asset_id: string; org_slug: string };
-
 type WidgetAccessResponse = { allowed: boolean };
 
 export async function checkWidgetAccess(domain: string, email: string): Promise<boolean> {
@@ -19,30 +17,6 @@ export async function checkWidgetAccess(domain: string, email: string): Promise<
     console.log('[SOPAI:api] checkWidgetAccess response:', data);
     return data.allowed;
 }
-
-export async function getOrgInfo(domain: string): Promise<OrgInfoResponse> {
-    console.log('[SOPAI:api] getOrgInfo requesting for domain:', domain);
-    const res = await fetch(`${API_BASE}/frontify/hmac-asset?domain=${encodeURIComponent(domain)}`);
-    if (!res.ok) {
-        throw new Error(`Failed to fetch org info: ${res.status}`);
-    }
-    const data = (await res.json()) as OrgInfoResponse;
-    console.log('[SOPAI:api] getOrgInfo response:', data);
-    return data;
-}
-
-const HMAC_ASSET_QUERY = `{
-    asset(id: "%ASSET_ID%") {
-        customMetadata {
-            ... on CustomMetadataValue {
-                property { name }
-                value
-            }
-        }
-    }
-}`;
-
-type MetadataEntry = { property: { name: string }; value: string };
 
 type AuthPayload = {
     domain: string;
@@ -90,20 +64,6 @@ export type AuthResponse = {
     org_slug: string;
 };
 
-async function getHmacKey(assetId: string): Promise<string> {
-    const query = HMAC_ASSET_QUERY.replace('%ASSET_ID%', assetId);
-    const res = await HttpClient.post('/graphql', { query } as Record<never, never>);
-
-    const data = res as unknown as { result: { data: { asset: { customMetadata: MetadataEntry[] } } } };
-    const metadata = data.result.data.asset.customMetadata;
-    const entry = metadata.find((m) => m.property.name === '_teammate_key');
-
-    if (!entry) {
-        throw new Error('HMAC key not found in asset metadata');
-    }
-    return entry.value;
-}
-
 async function signPayload(payload: Omit<AuthPayload, 'hmac'>, key: string): Promise<string> {
     const message = `${payload.domain}:${payload.accountId}:${payload.portalId}:${payload.blockId}:${payload.userId}:${payload.email}:${payload.timestamp}`;
     const encoder = new TextEncoder();
@@ -123,22 +83,13 @@ async function signPayload(payload: Omit<AuthPayload, 'hmac'>, key: string): Pro
 export async function authenticate(
     appBridge: AppBridgeBlock,
     user: { id: string; email: string },
+    hmacKey: string,
 ): Promise<AuthResponse> {
     const domain = window.location.origin;
     console.log('[SOPAI:api] authenticate() starting for user:', user.email);
 
-    // 1. Get the HMAC asset ID from our backend
-    console.log('[SOPAI:api] Step 1: Fetching HMAC asset ID...');
-    const { asset_id: assetId } = await getOrgInfo(domain);
-    console.log('[SOPAI:api] Step 1 done, asset ID:', assetId);
-
-    // 2. Fetch the HMAC key from Frontify (requires authenticated session)
-    console.log('[SOPAI:api] Step 2: Fetching HMAC key from Frontify...');
-    const hmacKey = await getHmacKey(assetId);
-    console.log('[SOPAI:api] Step 2 done, got HMAC key');
-
-    // 3. Gather context from app bridge
-    console.log('[SOPAI:api] Step 3: Gathering context (account, portal, block)...');
+    // 1. Gather context from app bridge
+    console.log('[SOPAI:api] Step 1: Gathering context (account, portal, block)...');
     const accountRes = await HttpClient.post('/graphql', {
         query: '{ account { id } }',
     } as Record<never, never>);
@@ -146,10 +97,10 @@ export async function authenticate(
         .id;
     const portalId = appBridge.context('portalId').get();
     const blockId = appBridge.context('blockId').get();
-    console.log('[SOPAI:api] Step 3 done, context:', { accountId, portalId, blockId });
+    console.log('[SOPAI:api] Step 1 done, context:', { accountId, portalId, blockId });
 
-    // 4. Build and sign the payload
-    console.log('[SOPAI:api] Step 4: Signing payload...');
+    // 2. Build and sign the payload using the configured HMAC key
+    console.log('[SOPAI:api] Step 2: Signing payload...');
     const timestamp = Math.floor(Date.now() / 1000);
     const payload: Omit<AuthPayload, 'hmac'> = {
         domain,
@@ -161,10 +112,10 @@ export async function authenticate(
         timestamp,
     };
     const hmac = await signPayload(payload, hmacKey);
-    console.log('[SOPAI:api] Step 4 done, HMAC:', `${hmac.slice(0, 16)}...`);
+    console.log('[SOPAI:api] Step 2 done, HMAC:', `${hmac.slice(0, 16)}...`);
 
-    // 5. Send to our backend for JWT
-    console.log('[SOPAI:api] Step 5: Posting to /frontify/auth...');
+    // 3. Send to our backend for JWT
+    console.log('[SOPAI:api] Step 3: Posting to /frontify/auth...');
     const authRes = await fetch(`${API_BASE}/frontify/auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -172,10 +123,10 @@ export async function authenticate(
     });
     if (!authRes.ok) {
         const body = await authRes.text();
-        console.error('[SOPAI:api] Step 5 FAILED:', authRes.status, body);
+        console.error('[SOPAI:api] Step 3 FAILED:', authRes.status, body);
         throw new Error(`Auth failed: ${authRes.status} - ${body}`);
     }
     const session = (await authRes.json()) as AuthResponse;
-    console.log('[SOPAI:api] Step 5 done, JWT received for:', session.first_name, session.last_name);
+    console.log('[SOPAI:api] Step 3 done, JWT received for:', session.first_name, session.last_name);
     return session;
 }
